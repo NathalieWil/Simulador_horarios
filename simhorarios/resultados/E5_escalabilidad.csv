@@ -1,0 +1,4 @@
+escenario,n_corridas,fitness_media,fitness_sd,fitness_min,fitness_max,tasa_factible_%,viol_media,N_b_media,N_g_media,D_media,seg_media,evals_media,clases_generadas
+n=40,5,48.42,0.3033,47.9,48.6,100.0,0,38.2,9,2,1.1302,19700,40
+n=70,5,84.89,0.6804,84.25,85.95,100.0,0,53.4,18.4,7,1.8279,19700,70
+n=100,5,119.45,6.2626,115.15,130.45,20.0,0.8,62,40.6,19,2.2397,19700,100

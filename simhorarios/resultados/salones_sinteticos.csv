@@ -1,0 +1,15 @@
+id,sede,capacidad,tipo,accesible
+BOL-A01,Bolívar,20,aula,0
+BOL-A02,Bolívar,45,aula,1
+BOL-A03,Bolívar,30,aula,0
+BOL-A04,Bolívar,30,aula,1
+BOL-A05,Bolívar,25,aula,0
+BOL-A06,Bolívar,50,aula,1
+BOL-A07,Bolívar,35,aula,1
+BOL-L01,Bolívar,20,laboratorio,1
+BAL-A01,Balsas,45,aula,1
+BAL-A02,Balsas,45,aula,0
+BAL-A03,Balsas,45,aula,0
+BAL-A04,Balsas,25,aula,1
+BAL-A05,Balsas,30,aula,0
+BAL-L01,Balsas,20,laboratorio,0

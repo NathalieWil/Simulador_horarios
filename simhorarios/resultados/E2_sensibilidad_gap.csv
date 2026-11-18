@@ -1,0 +1,4 @@
+escenario,n_corridas,fitness_media,fitness_sd,fitness_min,fitness_max,tasa_factible_%,viol_media,N_b_media,N_g_media,D_media,seg_media,evals_media,tras_est_total,tras_doc_total,pct_tarde_est,pct_tarde_est_ic95,pct_tarde_doc,min_tarde_medio,N_b_mejor,viol_mejor
+gap=120 min,10,84.96,0.5405,84.25,85.95,100.0,0,53.1,18.6,7,1.7895,19700,57.0,0.0,0.0,0.0,0.0,0.0,66,0
+gap=60 min,10,84.45,0.5831,83.6,85.45,100.0,0,48.2,18.6,6.6,1.7245,19700,0.0,2.0,0.0,0.0,30.0,4.6181,51,0
+gap=0 min,10,85.685,0.2199,85.45,86.05,100.0,0,55,19.7,6.7,1.6967,19700,0.0,6.0,0.0,0.0,59.4444,161.4353,57,0

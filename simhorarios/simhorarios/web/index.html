@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador híbrido de asignación de salones</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1d2330;--mu:#667085;--bd:#d9dde5;--ac:#2f5fd0;--bol:#4c72b0;--bal:#dd8452;--ok:#1a7f4b;--er:#c0392b}
+@media(prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d2129;--tx:#e8eaf0;--mu:#9aa3b2;--bd:#343a46;--ac:#7da2ff;--ok:#4cc38a;--er:#ff7b6b}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--tx)}
+header{padding:12px 20px;border-bottom:1px solid var(--bd);background:var(--card)}header h1{margin:0;font-size:18px}header small{color:var(--mu)}
+nav{display:flex;gap:4px;padding:8px 20px 0;background:var(--card);border-bottom:1px solid var(--bd);flex-wrap:wrap}
+nav button{border:0;background:none;color:var(--mu);padding:9px 14px;cursor:pointer;border-bottom:3px solid transparent;font-size:14px}
+nav button.on{color:var(--ac);border-color:var(--ac);font-weight:600}
+main{padding:16px 20px;max-width:1240px;margin:auto}.tab{display:none}.tab.on{display:block}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px}
+.row{display:flex;gap:14px;flex-wrap:wrap}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+label{display:block;font-size:12px;color:var(--mu)}input,select{width:100%;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);font-size:14px}
+button.btn{background:var(--ac);color:#fff;border:0;border-radius:7px;padding:8px 14px;cursor:pointer;font-size:14px}button.btn.sec{background:none;color:var(--ac);border:1px solid var(--ac)}
+button.btn:disabled{opacity:.5;cursor:wait}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.kpi{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px}
+.kpi b{display:block;font-size:20px}.kpi span{font-size:11px;color:var(--mu)}
+canvas{max-width:100%;background:var(--card);border-radius:8px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--bd);padding:5px 8px;text-align:right;font-size:13px}td:first-child,th:first-child{text-align:left}
+.ok{color:var(--ok)}.er{color:var(--er)}.mu{color:var(--mu)}.note{font-size:12px;color:var(--mu)}
+#msg{position:fixed;right:16px;bottom:16px;background:var(--card);border:1px solid var(--bd);padding:10px 14px;border-radius:8px;display:none;max-width:420px}
+</style></head><body>
+<header><h1>Simulador híbrido de asignación de salones <small>· AG + eventos discretos + dinámica continua (CO₂)</small></h1>
+<small id="aviso">Datos sintéticos; parámetros físicos = supuestos a calibrar.</small></header>
+<nav id="nav"></nav>
+<main>
+
+<section class="tab" id="t-opt">
+ <div class="card"><b>1 · Optimizar con el algoritmo genético adaptativo</b>
+  <div class="grid" style="margin-top:8px">
+   <div><label>Clases (instancia sintética)</label><input id="n_clases" type="number" value="70" min="10" max="150"></div>
+   <div><label>Semilla de los datos</label><input id="semilla_datos" type="number" value="2026"></div>
+   <div><label>Población</label><input id="pob" type="number" value="100"></div>
+   <div><label>Generaciones</label><input id="gens" type="number" value="200"></div>
+   <div><label>Selección</label><select id="seleccion"><option value="ruleta">Ruleta (documento)</option><option value="torneo">Torneo</option></select></div>
+   <div><label>Δ traslado entre sedes (min)</label><input id="gap" type="number" value="120"></div>
+   <div><label>w_ocup (extensión)</label><input id="w_ocup" type="number" value="0" step="0.5"></div>
+   <div><label>Semilla del AG</label><input id="semilla_ag" type="number" value="101"></div>
+   <div><label>Mutación dirigida (extensión)</label><select id="dirigida"><option value="0">No</option><option value="1">Sí</option></select></div>
+   <div id="realbox" style="display:none"><label>Datos</label><select id="usar_real"><option value="0">Sintéticos</option><option value="1">Reales (CSV)</option></select></div>
+  </div>
+  <p><button class="btn" id="b-opt">Ejecutar AG</button> <button class="btn sec" id="b-doc">Cargar parámetros del documento (50×50)</button> <span id="st-opt" class="mu"></span></p></div>
+ <div id="res-opt" style="display:none">
+  <div class="card"><div class="kpis" id="kpis"></div><p id="valid" class="note"></p></div>
+  <div class="row"><div class="card" style="flex:1;min-width:380px"><b>Convergencia</b><br><canvas id="c-conv" width="560" height="300"></canvas></div>
+  <div class="card" style="flex:1;min-width:380px"><b>Adaptación: p_m(t) y diversidad</b><br><canvas id="c-adap" width="560" height="300"></canvas></div></div>
+ </div>
+</section>
+
+<section class="tab" id="t-hor">
+ <div class="card"><b>2 · Horario resultante</b> <span class="note">(pasa el mouse sobre un bloque; azul = Bolívar, naranja = Balsas)</span>
+  <div class="row" style="align-items:end;margin:8px 0"><div id="dias"></div><div style="width:220px"><label>Resaltar docente</label><select id="f-doc"><option value="">(todos)</option></select></div></div>
+  <canvas id="c-gantt" width="1180" height="460"></canvas><div id="tip" class="note" style="min-height:20px"></div>
+  <p class="note" id="hor-vacio">Aún no hay horario: ve a «Optimizar».</p></div>
+</section>
+
+<section class="tab" id="t-sim">
+ <div class="card"><b>3 · Simulación híbrida</b> <span class="note">eventos discretos (llegadas, salidas, traslados) + EDO de CO₂ con RK4</span>
+  <div class="grid" style="margin-top:8px">
+   <div><label>Renovaciones de aire ACH (1/h)</label><input id="ach" type="number" value="6" step="0.5"></div>
+   <div><label>G CO₂ (×10⁻⁶ m³/s por persona)</label><input id="g" type="number" value="5.2" step="0.1"></div>
+   <div><label>Asistencia (%)</label><input id="asistencia" type="number" value="85"></div>
+   <div><label>Traslado mín (min)</label><input id="t_min" type="number" value="20"></div>
+   <div><label>Traslado moda (min)</label><input id="t_moda" type="number" value="40"></div>
+   <div><label>Traslado máx (min)</label><input id="t_max" type="number" value="90"></div>
+   <div><label>Umbral CO₂ (ppm)</label><input id="umbral" type="number" value="1000"></div>
+   <div><label>Semilla</label><input id="semilla" type="number" value="777"></div>
+   <div><label>Réplicas</label><input id="reps" type="number" value="30" max="100"></div>
+  </div>
+  <p><button class="btn" id="b-rep">Correr réplicas (estadísticas)</button> <span id="st-sim" class="mu"></span></p>
+  <div id="tabla-rep"></div></div>
+ <div class="card"><b>Animación de un día</b>
+  <div class="row" style="align-items:end;margin:8px 0"><div id="dias2"></div>
+   <button class="btn" id="b-anim">Preparar día</button><button class="btn sec" id="b-play" disabled>▶ Reproducir</button>
+   <div style="width:130px"><label>Velocidad</label><select id="vel"><option value="120">120×</option><option value="600" selected>600×</option><option value="1800">1800×</option></select></div>
+   <div style="flex:1;min-width:240px"><label id="reloj">--:--</label><input type="range" id="slider" min="23400" max="77400" step="60" value="23400"></div></div>
+  <canvas id="c-anim" width="1180" height="400"></canvas>
+  <p class="note">Color = CO₂ (verde → rojo, rojo ≈ 1.5× el umbral). Barra = ocupación. Haz clic en una sala para ver su curva.</p>
+  <canvas id="c-sala" width="1180" height="260"></canvas></div>
+</section>
+
+<section class="tab" id="t-def">
+ <div class="card"><b>4 · Defensa «en caliente»</b> <span class="note">cambia un coeficiente, simula y compara con el equilibrio analítico C<sub>ss</sub> = C<sub>ext</sub> + G·N/Q</span>
+  <div class="grid" style="margin-top:8px">
+   <div><label>ACH (1/h)</label><input id="d-ach" type="number" value="6" step="0.5"></div>
+   <div><label>N personas</label><input id="d-n" type="number" value="40"></div>
+   <div><label>Capacidad del salón</label><input id="d-cap" type="number" value="40"></div>
+   <div><label>G (×10⁻⁶ m³/s)</label><input id="d-g" type="number" value="5.2" step="0.1"></div>
+   <div><label>Horas simuladas</label><input id="d-h" type="number" value="6"></div></div>
+  <p><button class="btn" id="b-def">Simular</button> <span id="st-def" class="mu"></span></p>
+  <div class="kpis" id="kpi-def"></div><canvas id="c-def" width="1180" height="320" style="margin-top:10px"></canvas></div>
+</section>
+
+<section class="tab" id="t-res">
+ <div class="card"><b>5 · Experimentos y resultados guardados</b>
+  <p>Ejecuta los escenarios completos (E1–E5). Tardan varios minutos; puedes seguir usando las otras pestañas.</p>
+  <p><button class="btn" id="b-exp">Experimentos completos (~3–5 min)</button> <button class="btn sec" id="b-expr">Versión rápida (~1 min)</button> <span id="st-exp" class="mu"></span></p>
+  <p><button class="btn sec" id="b-aud">Auditar generador U(0,1)</button> <span id="st-aud" class="note"></span></p></div>
+ <div class="card"><b>Archivos en la carpeta resultados/</b> <button class="btn sec" id="b-ref">Actualizar</button><div id="lista"></div><div id="visor"></div></div>
+</section>
+</main><div id="msg"></div>
+
+<script>
+const $=id=>document.getElementById(id), DIAS=["Lun","Mar","Mié","Jue","Vie"], SEDE={"Bolívar":"#4c72b0","Balsas":"#dd8452"};
+let ST={res:null,anim:null,sel:null,dia:0,dia2:0};
+function msg(t,er){const m=$('msg');m.textContent=t;m.style.display='block';m.style.borderColor=er?'var(--er)':'var(--bd)';clearTimeout(m._t);m._t=setTimeout(()=>m.style.display='none',er?9000:3500)}
+async function api(ruta,body){const r=await fetch(ruta,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));return j}
+const hhmm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(Math.round(m%60)).padStart(2,'0');
+const hms=s=>hhmm(s/60);
+const fmt=(v,d=2)=>Number(v).toFixed(d);
+function vals(ids){const o={};ids.forEach(i=>{const e=$(i);o[i]=e.tagName==='SELECT'&&(e.value==='0'||e.value==='1')?e.value==='1':(e.type==='number'?parseFloat(e.value):e.value)});return o}
+
+/* ---------- pestañas ---------- */
+const TABS=[['opt','1 · Optimizar'],['hor','2 · Horario'],['sim','3 · Simulación'],['def','4 · Defensa en caliente'],['res','5 · Resultados']];
+TABS.forEach(([k,t])=>{const b=document.createElement('button');b.textContent=t;b.dataset.k=k;b.onclick=()=>show(k);$('nav').appendChild(b)});
+function show(k){document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+k));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));if(k==='hor')drawGantt();if(k==='res')listar()}
+function diaBtns(cont,key,cb){cont.innerHTML='';DIAS.forEach((d,i)=>{const b=document.createElement('button');b.className='btn '+(ST[key]===i?'':'sec');b.style.marginRight='4px';b.textContent=d;b.onclick=()=>{ST[key]=i;diaBtns(cont,key,cb);cb()};cont.appendChild(b)})}
+
+/* ---------- gráfico de líneas genérico ---------- */
+function lineChart(cv,series,o={}){const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,m={l:60,r:16,t:14,b:36};const cs=getComputedStyle(document.body);const tx=cs.getPropertyValue('--mu'),bd=cs.getPropertyValue('--bd');
+ ctx.clearRect(0,0,W,H);let xs=[],ys=[];series.forEach(s=>{xs.push(...s.x);ys.push(...s.y)});if(o.hline)ys.push(o.hline.y);
+ let x0=Math.min(...xs),x1=Math.max(...xs),y0=o.ymin!=null?o.ymin:Math.min(...ys),y1=o.ymax!=null?o.ymax:Math.max(...ys);if(y1===y0){y1+=1;y0-=1}const pad=(y1-y0)*.05;if(o.ymin==null)y0-=pad;if(o.ymax==null)y1+=pad;
+ const X=x=>m.l+(x-x0)/(x1-x0||1)*(W-m.l-m.r),Y=y=>H-m.b-(y-y0)/(y1-y0)*(H-m.t-m.b);ctx.font='11px sans-serif';ctx.fillStyle=tx;ctx.strokeStyle=bd;ctx.lineWidth=1;
+ for(let i=0;i<=5;i++){const yy=y0+(y1-y0)*i/5,xx=x0+(x1-x0)*i/5;ctx.beginPath();ctx.moveTo(m.l,Y(yy));ctx.lineTo(W-m.r,Y(yy));ctx.stroke();ctx.textAlign='right';ctx.fillText(fmt(yy,Math.abs(y1-y0)<5?2:0),m.l-5,Y(yy)+4);ctx.textAlign='center';ctx.fillText(o.xfmt?o.xfmt(xx):fmt(xx,0),X(xx),H-m.b+15)}
+ ctx.textAlign='center';if(o.xlabel)ctx.fillText(o.xlabel,(W+m.l)/2,H-4);if(o.ylabel){ctx.save();ctx.translate(12,H/2);ctx.rotate(-Math.PI/2);ctx.fillText(o.ylabel,0,0);ctx.restore()}
+ if(o.hline){ctx.strokeStyle='#888';ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(m.l,Y(o.hline.y));ctx.lineTo(W-m.r,Y(o.hline.y));ctx.stroke();ctx.setLineDash([]);ctx.textAlign='left';ctx.fillStyle=tx;ctx.fillText(o.hline.label||'',m.l+6,Y(o.hline.y)-4)}
+ if(o.vline!=null&&o.vline>=x0&&o.vline<=x1){ctx.strokeStyle='#c0392b';ctx.beginPath();ctx.moveTo(X(o.vline),m.t);ctx.lineTo(X(o.vline),H-m.b);ctx.stroke()}
+ series.forEach((s,k)=>{ctx.strokeStyle=s.color;ctx.lineWidth=2;ctx.setLineDash(s.dash||[]);ctx.beginPath();s.x.forEach((x,i)=>i?ctx.lineTo(X(x),Y(s.y[i])):ctx.moveTo(X(x),Y(s.y[i])));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=s.color;ctx.textAlign='left';ctx.fillText('— '+s.label,m.l+8+k*190,m.t+10)});}
+
+/* ---------- 1. optimizar ---------- */
+$('b-doc').onclick=()=>{$('pob').value=50;$('gens').value=50;$('seleccion').value='ruleta';$('dirigida').value='0';msg('Parámetros del documento: 50×50, ruleta, sin mutación dirigida')};
+$('b-opt').onclick=async()=>{const b=$('b-opt');b.disabled=true;$('st-opt').textContent='Evolucionando…';
+ try{const body=vals(['n_clases','semilla_datos','pob','gens','seleccion','gap','w_ocup','semilla_ag','dirigida']);body.usar_real=$('usar_real').value==='1';
+  const r=await api('/api/optimizar',body);ST.res=r;ST.anim=null;renderOpt(r);fillDocentes();drawGantt();$('st-opt').textContent=`Listo en ${fmt(r.segundos,1)} s (${r.evaluaciones} evaluaciones)`}
+ catch(e){$('st-opt').textContent='';msg(e.message,true)}b.disabled=false};
+function kpi(l,v,c=''){return `<div class="kpi"><b class="${c}">${v}</b><span>${l}</span></div>`}
+function renderOpt(r){const e=r.eval,f=e.n_viol===0;$('res-opt').style.display='block';
+ $('kpis').innerHTML=kpi('Fitness',fmt(e.fitness))+kpi('Factible',f?'Sí':'No ('+e.n_viol+')',f?'ok':'er')+kpi('Clases asignadas',e.n_asig+' / '+r.instancia.clases)+kpi('N_b (Balsas)',e.N_b)+kpi('N_g (agrupadas)',e.N_g)+kpi('D (huecos)',e.D)+kpi('Recompensa R',fmt(e.R))+kpi('Penalización P',fmt(e.P),e.P>0?'er':'ok');
+ $('valid').innerHTML=(r.validador.length?'<span class="er">Validador independiente: '+r.validador.join(' · ')+'</span>':'<span class="ok">Validador independiente: 0 violaciones de restricciones duras.</span>')+(r.instancia.sintetico?' · Datos sintéticos.':' · Datos reales.');
+ const g=r.historia.map(h=>h.gen);lineChart($('c-conv'),[{x:g,y:r.historia.map(h=>h.mejor),color:'#2f5fd0',label:'mejor'},{x:g,y:r.historia.map(h=>h.media),color:'#dd8452',label:'media'}],{xlabel:'generación',ylabel:'fitness',ymin:Math.max(0,Math.min(...r.historia.map(h=>h.mejor))-5)});
+ lineChart($('c-adap'),[{x:g,y:r.historia.map(h=>h.diversidad),color:'#1a7f4b',label:'diversidad'},{x:g,y:r.historia.map(h=>h.pm),color:'#c0392b',label:'p_m(t)',dash:[5,3]}],{xlabel:'generación',ymin:0})}
+
+/* ---------- 2. horario (Gantt) ---------- */
+function fillDocentes(){const ds=[...new Set(ST.res.clases.map(c=>c.docente))].sort();$('f-doc').innerHTML='<option value="">(todos)</option>'+ds.map(d=>`<option>${d}</option>`).join('')}
+$('f-doc').onchange=drawGantt;diaBtns($('dias'),'dia',drawGantt);
+let GBOX=[];
+function drawGantt(){const r=ST.res;$('hor-vacio').style.display=r?'none':'block';if(!r)return;const cv=$('c-gantt'),ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
+ const cs=getComputedStyle(document.body),tx=cs.getPropertyValue('--tx'),bd=cs.getPropertyValue('--bd');const L=95,T=26,W=cv.width-L-12,rh=(cv.height-T-30)/r.salones.length,t0=6.5*60,t1=21.5*60,X=m=>L+(m-t0)/(t1-t0)*W;
+ ctx.font='11px sans-serif';ctx.strokeStyle=bd;ctx.fillStyle=tx;ctx.textAlign='center';for(let h=7;h<=21;h++){ctx.beginPath();ctx.moveTo(X(h*60),T);ctx.lineTo(X(h*60),cv.height-30);ctx.stroke();ctx.fillText(h+':00',X(h*60),T-8)}
+ ctx.textAlign='right';r.salones.forEach((s,i)=>{ctx.fillStyle=SEDE[s.sede]||tx;ctx.fillText(s.id+' ('+s.cap+')',L-6,T+i*rh+rh/2+4);ctx.strokeStyle=bd;ctx.beginPath();ctx.moveTo(L,T+(i+1)*rh);ctx.lineTo(L+W,T+(i+1)*rh);ctx.stroke()});
+ const f=$('f-doc').value;GBOX=[];r.clases.filter(c=>c.dia===ST.dia&&c.salon>=0).forEach(c=>{const s=r.salones[c.salon],x=X(c.ini),w=X(c.fin)-x,y=T+c.salon*rh+3;const dim=f&&c.docente!==f;
+  ctx.globalAlpha=dim?.25:1;ctx.fillStyle=SEDE[s.sede];ctx.fillRect(x,y,w-1,rh-6);ctx.fillStyle='#fff';ctx.textAlign='left';ctx.fillText(c.prog+'-S'+c.sem,x+3,y+(rh-6)/2+4);ctx.globalAlpha=1;GBOX.push({x,y,w,h:rh-6,c,s})});
+ ctx.fillStyle=SEDE['Bolívar'];ctx.fillRect(L,cv.height-18,12,10);ctx.fillStyle=tx;ctx.textAlign='left';ctx.fillText('Bolívar',L+16,cv.height-9);ctx.fillStyle=SEDE['Balsas'];ctx.fillRect(L+80,cv.height-18,12,10);ctx.fillStyle=tx;ctx.fillText('Balsas',L+96,cv.height-9)}
+$('c-gantt').onmousemove=e=>{const cv=$('c-gantt'),q=cv.getBoundingClientRect(),x=(e.clientX-q.left)*cv.width/q.width,y=(e.clientY-q.top)*cv.height/q.height;const b=GBOX.find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+ $('tip').textContent=b?`Clase ${b.c.id} · ${b.c.docente} · ${b.c.prog} sem ${b.c.sem} · ${hhmm(b.c.ini)}–${hhmm(b.c.fin)} · cupo ${b.c.cupo} → ${b.s.id} (${b.s.sede}, cap ${b.s.cap})`:''};
+
+/* ---------- 3. simulación ---------- */
+const PS=['ach','g','asistencia','t_min','t_moda','t_max','umbral','semilla','reps'];
+const LAB={co2_pico_max:['CO₂ pico máximo (ppm)',1],co2_pico_medio:['CO₂ pico medio por clase (ppm)',1],pct_ocup_sobre_umbral:['% del tiempo ocupado sobre el umbral',2],min_sobre_umbral:['Minutos sobre el umbral (semana)',1],viajes_doc:['Traslados docentes',1],tarde_doc:['… tardíos',2],pct_tarde_doc:['% traslados docentes tardíos',2],viajes_est:['Traslados de estudiantes',0],tarde_est:['… tardíos',2],pct_tarde_est:['% traslados de estudiantes tardíos',2],min_tarde:['Minutos de retraso acumulados (semana)',1]};
+$('b-rep').onclick=async()=>{const b=$('b-rep');b.disabled=true;$('st-sim').textContent='Simulando…';
+ try{const r=await api('/api/simular',vals(PS));let h=`<table><tr><th>Métrica (media de ${r.n} réplicas)</th><th>media</th><th>± IC 95 %</th><th>desv. est.</th></tr>`;
+  Object.keys(LAB).forEach(k=>{const s=r.resumen[k];h+=`<tr><td>${LAB[k][0]}</td><td>${fmt(s.media,LAB[k][1])}</td><td>${fmt(s.ic95,LAB[k][1])}</td><td>${fmt(s.sd,LAB[k][1])}</td></tr>`});$('tabla-rep').innerHTML=h+'</table>';$('st-sim').textContent=''}
+ catch(e){$('st-sim').textContent='';msg(e.message,true)}b.disabled=false};
+diaBtns($('dias2'),'dia2',()=>{});
+$('b-anim').onclick=async()=>{const b=$('b-anim');b.disabled=true;
+ try{const r=await api('/api/traza',{...vals(PS),dia:ST.dia2});ST.anim={...r,t:6.5*3600,play:false,last:null};ST.sel=r.salas.length?r.salas[0].k:null;
+  ST.anim.clases=ST.res.clases.filter(c=>c.dia===ST.dia2&&c.salon>=0);$('b-play').disabled=false;$('slider').value=ST.anim.t;drawAnim(true);msg('Día '+DIAS[ST.dia2]+' listo: pulsa Reproducir o mueve el reloj')}
+ catch(e){msg(e.message,true)}b.disabled=false};
+$('b-play').onclick=()=>{const a=ST.anim;if(!a)return;a.play=!a.play;$('b-play').textContent=a.play?'❚❚ Pausa':'▶ Reproducir';a.last=null;if(a.play)requestAnimationFrame(tick)};
+$('slider').oninput=()=>{if(ST.anim){ST.anim.t=+$('slider').value;drawAnim(true)}};
+function tick(ts){const a=ST.anim;if(!a||!a.play)return;if(a.last!=null)a.t+=(ts-a.last)/1000*(+$('vel').value);a.last=ts;if(a.t>=77400){a.t=77400;a.play=false;$('b-play').textContent='▶ Reproducir'}$('slider').value=a.t;drawAnim(false);if(a.play)requestAnimationFrame(tick)}
+function muestra(s,t,a){const z=s.traza;if(!z.length||t<z[0][0])return{C:a.c_ext,N:0};let lo=0,hi=z.length-1;if(t>=z[hi][0]){const d=t-z[hi][0];return{C:a.c_ext+(z[hi][1]-a.c_ext)*Math.exp(-a.lam*d),N:z[hi][2]}}
+ while(hi-lo>1){const m=(lo+hi)>>1;if(z[m][0]<=t)lo=m;else hi=m}return{C:z[lo][1],N:z[lo][2]}}
+function drawAnim(redrawSala){const a=ST.anim;if(!a)return;const cv=$('c-anim'),ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);$('reloj').textContent='Reloj de simulación: '+hms(a.t)+' · '+DIAS[a.dia];
+ const cs=getComputedStyle(document.body),tx=cs.getPropertyValue('--tx'),mu=cs.getPropertyValue('--mu'),bd=cs.getPropertyValue('--bd');const cols=6,cw=cv.width/cols,ch=120;a._cards=[];
+ a.salas.forEach((s,i)=>{const x=(i%cols)*cw+6,y=Math.floor(i/cols)*(ch+8)+6,w=cw-12,m=muestra(s,a.t,a),r=Math.max(0,Math.min(1,(m.C-a.c_ext)/(a.umbral*1.5-a.c_ext)));
+  ctx.fillStyle=`hsl(${120*(1-r)},65%,${cs.getPropertyValue('--bg').trim()==='#14171d'?32:80}%)`;ctx.fillRect(x,y,w,ch);ctx.lineWidth=s.k===ST.sel?3:2;ctx.strokeStyle=SEDE[s.sede];ctx.strokeRect(x,y,w,ch);
+  ctx.fillStyle=tx;ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText(s.id,x+8,y+18);ctx.font='12px sans-serif';ctx.fillStyle=mu;ctx.fillText('cap '+s.cap,x+w-52,y+18);
+  ctx.fillStyle=tx;ctx.font='bold 20px sans-serif';ctx.fillText(Math.round(m.C)+' ppm',x+8,y+48);
+  ctx.fillStyle=bd;ctx.fillRect(x+8,y+60,w-16,10);ctx.fillStyle=SEDE[s.sede];ctx.fillRect(x+8,y+60,(w-16)*Math.min(1,m.N/s.cap),10);ctx.fillStyle=tx;ctx.font='12px sans-serif';ctx.fillText(m.N+' / '+s.cap+' personas',x+8,y+86);
+  const cl=a.clases.find(c=>c.salon===s.k&&a.t>=c.ini*60&&a.t<=c.fin*60);ctx.fillStyle=mu;ctx.fillText(cl?(cl.docente+' · '+cl.prog+'-S'+cl.sem):'libre',x+8,y+105);a._cards.push({x,y,w,h:ch,k:s.k})});
+ if(redrawSala!==false||true)drawSala()}
+$('c-anim').onclick=e=>{const a=ST.anim;if(!a)return;const cv=$('c-anim'),q=cv.getBoundingClientRect(),x=(e.clientX-q.left)*cv.width/q.width,y=(e.clientY-q.top)*cv.height/q.height;const c=a._cards.find(c=>x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h);if(c){ST.sel=c.k;drawAnim()}};
+function drawSala(){const a=ST.anim;if(!a)return;const s=a.salas.find(s=>s.k===ST.sel);if(!s||!s.traza.length)return;
+ lineChart($('c-sala'),[{x:s.traza.map(p=>p[0]/3600),y:s.traza.map(p=>p[1]),color:'#c0392b',label:'CO₂ de '+s.id+' (ppm)'}],{xlabel:'hora del día',ylabel:'ppm',hline:{y:a.umbral,label:'umbral'},vline:a.t/3600,xfmt:h=>hms(h*3600)})}
+
+/* ---------- 4. defensa ---------- */
+$('b-def').onclick=async()=>{const b=$('b-def');b.disabled=true;
+ try{const r=await api('/api/defensa',{ach:+$('d-ach').value,n:+$('d-n').value,cap:+$('d-cap').value,g:+$('d-g').value,horas:+$('d-h').value});
+  $('kpi-def').innerHTML=kpi('Volumen V (m³)',fmt(r.vol,0))+kpi('τ = V/Q (min)',fmt(r.tau_min,1))+kpi('C equilibrio analítico (ppm)',fmt(r.css,1))+kpi('C simulado al final (ppm)',fmt(r.final_sim,1))+kpi('Diferencia (ppm)',fmt(Math.abs(r.css-r.final_sim),2));
+  lineChart($('c-def'),[{x:r.t_min,y:r.sim,color:'#2f5fd0',label:'RK4 (simulado)'},{x:r.t_min,y:r.ana,color:'#1a7f4b',label:'solución analítica',dash:[6,4]}],{xlabel:'tiempo (min)',ylabel:'CO₂ (ppm)',hline:{y:r.css,label:'equilibrio C_ss'}})}
+ catch(e){msg(e.message,true)}b.disabled=false};
+
+/* ---------- 5. resultados ---------- */
+async function listar(){try{const r=await api('/api/resultados');$('lista').innerHTML=r.archivos.length?r.archivos.map(f=>`<a href="#" data-f="${f}" style="margin-right:12px;display:inline-block">${f}</a>`).join(''):'<span class="mu">Aún no hay resultados: ejecuta los experimentos.</span>';
+ $('lista').querySelectorAll('a').forEach(a=>a.onclick=ev=>{ev.preventDefault();abrir(a.dataset.f)})}catch(e){}}
+async function abrir(f){const v=$('visor');if(/\.png$/.test(f)){v.innerHTML=`<img src="/resultados/${f}?${Date.now()}" style="max-width:100%;margin-top:10px">`;return}
+ const t=await (await fetch('/resultados/'+f)).text();if(/\.csv$/.test(f)){const rows=t.trim().split(/\r?\n/).map(l=>l.match(/("([^"]|"")*"|[^,]*)(,|$)/g).map(x=>x.replace(/,$/,'').replace(/^"|"$/g,'')));
+  v.innerHTML='<div style="overflow:auto;margin-top:10px"><table>'+rows.map((r,i)=>'<tr>'+r.map(c=>i?`<td>${c}</td>`:`<th>${c}</th>`).join('')+'</tr>').join('')+'</table></div>'}else v.innerHTML='<pre style="overflow:auto;max-height:420px">'+t.replace(/</g,'&lt;')+'</pre>'}
+$('b-ref').onclick=listar;
+async function lanzar(rapido){try{await api('/api/experimentos',{rapido});sondear()}catch(e){msg(e.message,true)}}
+$('b-exp').onclick=()=>lanzar(false);$('b-expr').onclick=()=>lanzar(true);
+async function sondear(){const s=await api('/api/estado');$('st-exp').textContent=s.exp==='inactivo'?'':s.msg;if(s.exp==='corriendo')setTimeout(sondear,3000);else if(s.exp==='listo'){listar();msg('Experimentos terminados')}else if(s.exp==='error')msg(s.msg,true)}
+$('b-aud').onclick=async()=>{const r=await api('/api/auditoria');$('st-aud').textContent=`media ${fmt(r.media,4)} (0.5) · varianza ${fmt(r.varianza,4)} (0.0833) · χ² ${fmt(r.chi2,2)} < ${r.chi2_critico_5pct} → uniforme ${r.uniforme_no_rechazada?'no rechazada':'RECHAZADA'} · z autocorr. ${fmt(r.z_rho,2)} → independencia ${r.independencia_no_rechazada?'no rechazada':'RECHAZADA'}`};
+
+(async()=>{const s=await api('/api/estado');if(s.real)$('realbox').style.display='block';show('opt');sondear()})();
+</script></body></html>
